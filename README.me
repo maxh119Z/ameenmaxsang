@@ -1,6 +1,27 @@
-Merged data for irt training csv
+Merged FINAL/FULL data for irt training csv. Main.
 https://drive.google.com/file/d/15E4I5ELFg5poe85EACOxK5beK0Z2HC3b/view?usp=sharing
 
 
-Data drive
+Data drive (in general). Includes the full csv + specific model data csv.
 https://drive.google.com/drive/folders/16LS-EUjxg4dYYtA3nLt-KzltwC8-rorp?usp=sharing
+
+Safety prompt for anchor generation - Qwen3-32B
+```
+system_prompt = (
+         "You are a translation quality auditor. Compare the semantic meaning of the provided sentences. "
+         "Ignore minor punctuation or tone differences. Focus on key intent and nouns."
+)
+                
+user_prompt = f"""
+        Do the following four sentences have the EXACT same semantic meaning? 
+        Definition: TRANSLATION DOES NOT ALTER THE SEMANTIC MEANING IN ANY WAY WHATSOEVER. 
+        To any person native in both languages, they would mean the exact same thing.
+
+        1. English: "{row['en']}"
+        2. Chinese: "{row['zh']}"
+        3. Arabic: "{row['ar']}"
+        4. Bengali: "{row['bn']}"
+
+        Respond with ONLY "YES" or "NO". Do not provide explanations.
+"""
+```

@@ -7,7 +7,7 @@ Includes the full merged CSV plus per-model CSVs:
 Folder: https://drive.google.com/drive/folders/16LS-EUjxg4dYYtA3nLt-KzltwC8-rorp?usp=sharing
 
 
-## Anchor Generation Prompt (Qwen3-32B): ##
+### Anchor Generation Prompt (Qwen3-32B): ###
 system_prompt = (
     "You are a translation quality auditor. Compare the semantic meaning of the provided sentences. "
     "Ignore minor punctuation or tone differences. Focus on key intent and nouns."

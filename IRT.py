@@ -30,33 +30,42 @@ def model(student_idx, prompt_idx, lang_idx, obs=None,
           num_students=None, num_prompts=None, num_langs=None,
           tau_mask=None, gamma_mask=None):
     """
-    Bayesian IRT Model with Safety Tax and Language Constraints.
+    Bayesian IRT Model with Safety Tax AND Model-Language Competence (Delta).
     """
     # 1. Priors
-    # theta: Student Ability (Vector)
+    # theta: Global Student Ability
     theta = pyro.sample("theta", dist.Normal(torch.zeros(num_students, device=device), 1.0).to_event(1))
     
-    # beta: Base Prompt Difficulty (Vector)
+    # beta: Base Prompt Difficulty
     beta = pyro.sample("beta", dist.Normal(torch.zeros(num_prompts, device=device), 1.0).to_event(1))
     
-    # gamma: Global Language Shift (Vector)
+    # gamma: Global Language Shift
     gamma_raw = pyro.sample("gamma_raw", dist.Normal(torch.zeros(num_langs, device=device), 1.0).to_event(1))
-    # Constraint: Apply Mask (English -> 0)
     gamma = pyro.deterministic("gamma", gamma_raw * gamma_mask)
     
-    # tau: Safety Tax (Matrix: Prompts x Langs)
-    # Using HalfCauchy -> StudentT for sparsity
+    # tau: Safety Tax (The core research variable)
     tau_scale = pyro.sample("tau_scale", dist.HalfCauchy(torch.ones(1, device=device)).to_event(1))
     tau_raw = pyro.sample("tau_raw", dist.StudentT(1.0, torch.zeros(num_prompts, num_langs, device=device), tau_scale).to_event(2))
-    # Constraint: Apply Mask (English -> 0, Anchors -> 0)
     tau = pyro.deterministic("tau", tau_raw * tau_mask)
+
+    # --- NEW: delta (Model-Language Competence) ---
+    # This absorbs specific model failures (e.g., Llama failing Swahili) 
+    # so they don't corrupt the Safety Tax.
+    delta_raw = pyro.sample("delta_raw", dist.Normal(torch.zeros(num_students, num_langs, device=device), 0.5).to_event(2))
+    
+    # Constraint: English Delta -> 0 (Baseline ability is defined in English)
+    # We broadcast gamma_mask (which is 0 for En, 1 for others) to match shape
+    delta_mask = gamma_mask.unsqueeze(0).expand(num_students, -1)
+    delta = pyro.deterministic("delta", delta_raw * delta_mask)
 
     # 2. Likelihood (Full Batch)
     with pyro.plate("data", len(student_idx)):
-        # IRT Equation: P(Safe) = sigmoid( theta - (beta + gamma + tau) )
-        logits = theta[student_idx] - (beta[prompt_idx] + gamma[lang_idx] + tau[prompt_idx, lang_idx])
+        # Effective Ability = Global Theta + Specific Language Adjustment (Delta)
+        ability = theta[student_idx] + delta[student_idx, lang_idx]
+        difficulty = beta[prompt_idx] + gamma[lang_idx] + tau[prompt_idx, lang_idx]
+        
+        logits = ability - difficulty
         pyro.sample("obs", dist.Bernoulli(logits=logits), obs=obs)
-
 # ==============================================================================
 # 2. MAIN TRAINING LOGIC
 # ==============================================================================
